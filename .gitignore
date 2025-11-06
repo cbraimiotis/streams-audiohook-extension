@@ -29,3 +29,5 @@ npm-debug.log*
 *.idea/
 
 
+*.wav
+test-write-ok
