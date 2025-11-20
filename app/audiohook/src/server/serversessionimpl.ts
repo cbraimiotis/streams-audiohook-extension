@@ -549,28 +549,27 @@ export class ServerSessionImpl extends EventEmitter implements ServerSession {
         const sessionIdBuf = Buffer.alloc(36, ' ');
         sessionIdBuf.write(sessionIdStr, 0, 'utf8');
 
-        // Get channel id (assume first channel in selectedMedia.channels)
-        let channelId = 0;
-        if (this.selectedMedia && Array.isArray(this.selectedMedia.channels) && this.selectedMedia.channels.length > 0) {
-            // You may want to map channel names to numbers if needed
-            channelId = typeof this.selectedMedia.channels[0] === 'number' ? this.selectedMedia.channels[0] : 0;
-        }
+        // Channel ID: Use 0 for interleaved multi-channel audio (GnsysOp will deinterleave)
+        const channelId = 0;
         const channelBuf = Buffer.alloc(1);
         channelBuf.writeUInt8(channelId, 0);
 
-        // Size of data buffer (4 bytes, big-endian)
-        const dataBuf = Buffer.from(data);
+        // Send raw PCMU (μ-law) audio data as received from Genesys
+        // GnsysOp will handle μ-law to PCM conversion
+        const pcmuFrame = audioFrame.as('PCMU');
+        const audioData = pcmuFrame.audio.data; // Uint8Array of μ-law samples
+        const dataBuf = Buffer.from(audioData.buffer, audioData.byteOffset, audioData.byteLength);
         const sizeBuf = Buffer.alloc(4);
         sizeBuf.writeUInt32BE(dataBuf.length, 0);
 
         // Combine all buffers
         const combinedBuf = Buffer.concat([sessionIdBuf, channelBuf, sizeBuf, dataBuf]);
-             if (!this.socketClients || this.socketClients.size === 0) {
+        
+        if (!this.socketClients || this.socketClients.size === 0) {
             this.logger.warn('No socket clients connected for forwarding');
-            
-         } else {
+        } else {
             this.forwardToSocketClients(Uint8Array.from(combinedBuf));
-         }
+        }
 
         this.position = this.position.withAddedSamples(audioFrame.sampleCount, audioFrame.rate);
         this.onAudioData(audioFrame);
@@ -581,90 +580,60 @@ export class ServerSessionImpl extends EventEmitter implements ServerSession {
 
      private initializeSocketServer(): void {
     try {
+                this.logger.info(`🔌 Attempting to connect to Unix socket: ${this.socketPath}`);
                 const net = require('net');
-                const fs = require('fs');
                 
-                // ✅ Ensure socketClients exists
-                if (!this.socketClients) {
-                    this.socketClients = new Set();
-                }
+                // Create a Unix datagram socket using native module
+                this.socketFd = net.Socket({ allowHalfOpen: false });
                 
-                // Clean up existing socket file
-                if (fs.existsSync(this.socketPath)) {
-                    fs.unlinkSync(this.socketPath);
-                }
-                
-                this.socketServer = net.createServer((socket: any) => {
-                    this.logger.info('✅ Client connected to system socket');
-                    this.socketClients.add(socket);
-                    
-                    socket.on('data', (data: Buffer) => {
-                        this.logger.trace(`Received ${data.length} bytes from socket client`);
-                    });
-                    
-                    socket.on('end', () => {
-                        this.logger.info('Client disconnected from system socket');
-                        this.socketClients.delete(socket);
-                    });
-                    
-                    socket.on('error', (err: Error) => {
-                        this.logger.error(`Socket client error: ${err.message}`);
-                        this.socketClients.delete(socket);
-                    });
-                    
-                    socket.on('close', () => {
-                        this.socketClients.delete(socket);
-                    });
+                // For datagram-style sending, we'll connect to the server socket
+                this.socketFd.connect(this.socketPath, () => {
+                    this.logger.info(`✅ Successfully connected to Unix socket: ${this.socketPath}`);
+                    this.logger.info(`📡 Socket ready to forward audio data to GnsysOp`);
+                    this.socketClients.add(this.socketFd);
                 });
                 
-                // Listen on Unix domain socket path
-                this.socketServer.listen(this.socketPath, () => {
-                    this.logger.info(`✅ System socket server listening on: ${this.socketPath}`);
-                    
-                    // Set filesystem permissions
-                    fs.chmodSync(this.socketPath, 0o666);
+                this.socketFd.on('error', (err: Error) => {
+                    this.logger.error(`❌ Socket error: ${err.message}`);
+                    this.logger.error(`   Socket path: ${this.socketPath}`);
+                    this.logger.error(`   Make sure GnsysOp is running and listening on the socket`);
+                    this.socketClients.delete(this.socketFd);
                 });
-
-                this.socketServer.on('error', (err: Error) => {
-                    this.logger.error(`❌ Socket server error: ${err.message}`);
-                    this.socketServer = null;
+                
+                this.socketFd.on('close', () => {
+                    this.logger.warn('⚠️ Socket connection closed');
+                    this.logger.warn(`   No longer connected to ${this.socketPath}`);
+                    this.socketClients.delete(this.socketFd);
                 });
-
+                
             } catch (err) {
-                this.logger.error(`❌ Failed to initialize socket server: ${normalizeError(err).message}`);
-                this.socketServer = null;
+                this.logger.error(`❌ Failed to initialize socket client: ${err}`);
+                this.logger.error(`   Socket path: ${this.socketPath}`);
+                this.socketFd = null;
             }
         }
 
        private forwardToSocketClients(data: Uint8Array): void {
-      
-     
-
         try {
+            if (!this.socketFd || !this.socketFd.writable) {
+                this.logger.warn('⚠️ Socket client not connected or not writable - cannot forward audio');
+                this.logger.warn(`   Socket path: ${this.socketPath}`);
+                return;
+            }
+            
             const buffer = Buffer.from(data);
-            let successCount = 0;
-            const clients = Array.from(this.socketClients);
-
-            clients.forEach((client) => {
-                try {
-                    const socketClient = client as { writable: boolean; destroyed: boolean; write: (buf: Buffer) => void };
-                    if (socketClient.writable && !socketClient.destroyed) {
-                        socketClient.write(buffer);
-                        successCount++;
-                    } else {
-                        // Remove dead clients
-                        this.socketClients.delete(client);
-                    }
-                } catch (err) {
-                    this.logger.error(`Failed to write to socket client: ${normalizeError(err).message}`);
-                    this.socketClients.delete(client);
+            
+            // Send data through the connected stream socket
+            this.socketFd.write(buffer, (err: Error | undefined) => {
+                if (err) {
+                    this.logger.error(`❌ Failed to write to socket: ${err.message}`);
+                } else {
+                    this.logger.trace(`✓ Sent ${data.length} bytes to ${this.socketPath}`);
                 }
             });
             
-            this.logger.trace(`Forwarded ${data.length} bytes to ${successCount} socket clients`);
-            
         } catch (err) {
-            this.logger.error(`Failed to forward data to socket clients: ${normalizeError(err).message}`);
+            this.logger.error(`❌ Failed to forward data to socket: ${normalizeError(err).message}`);
         }
     }
 
@@ -672,7 +641,7 @@ export class ServerSessionImpl extends EventEmitter implements ServerSession {
     public close(): void {
         if (this.socketFd) {
             try {
-                this.socketFd.end();
+                this.socketFd.close();
                 this.logger.info('Socket closed');
             } catch (err) {
                 this.logger.warn(`Error closing socket: ${normalizeError(err).message}`);
