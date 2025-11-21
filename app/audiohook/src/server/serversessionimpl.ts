@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import path from 'path';  
+import path from 'path';
 import {
     ClientMessage,
     CloseMessage,
@@ -139,7 +139,7 @@ export class ServerSessionImpl extends EventEmitter implements ServerSession {
     readonly messageDispatch: MessageDispatcher<ClientMessage>;
     private wavWriter?: WavFileWriter;
     private recordingPath?: string;
-    
+
     id: Uuid;
     seq = 0;
     clientseq = 0;
@@ -163,18 +163,18 @@ export class ServerSessionImpl extends EventEmitter implements ServerSession {
     socketServer: any;
 
     private constructor({ ws, id, logger, timeProvider, supportedLanguages }: ServerSessionOptions) {
-    super();
-    this.ws = ws;
-    this.id = id;
-    this.logger = logger;
-    this.timeProvider = timeProvider ?? defaultTimeProvider;
-    this.supportedLanguages = supportedLanguages ?? null;
-    this.lastPingTimestamp = this.timeProvider.getHighresTimestamp();
-    this.logger.info(`[ServerSessionImpl] constructor called, ws id: ${id}`);
+        super();
+        this.ws = ws;
+        this.id = id;
+        this.logger = logger;
+        this.timeProvider = timeProvider ?? defaultTimeProvider;
+        this.supportedLanguages = supportedLanguages ?? null;
+        this.lastPingTimestamp = this.timeProvider.getHighresTimestamp();
+        this.logger.info(`[ServerSessionImpl] constructor called, ws id: ${id}`);
 
-    this.initializeSocketServer();
+        this.initializeSocketServer();
 
-    this.registerHandlers();
+        this.registerHandlers();
         this.messageDispatch = {
             open: msg => this.onOpenMessage(msg),
             close: msg => this.onCloseMessage(msg),
@@ -195,14 +195,14 @@ export class ServerSessionImpl extends EventEmitter implements ServerSession {
         this.state = state;
     }
 
-     async startWavRecording(sessionId: string, fileLogRoot: string): Promise<void> {
+    async startWavRecording(sessionId: string, fileLogRoot: string): Promise<void> {
         try {
             // Create recording filename with timestamp
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
             const filename = `${sessionId}_${timestamp}.wav`;
             const recordingPath = path.join(fileLogRoot, filename);
             this.recordingPath = recordingPath;
-            
+
             // Fix: Handle MediaChannels type properly
             let channels = 1;  // default
             if (this.selectedMedia?.channels) {
@@ -212,7 +212,7 @@ export class ServerSessionImpl extends EventEmitter implements ServerSession {
                     channels = this.selectedMedia.channels.length;
                 }
             }
-            
+
             // Create WAV writer with detected audio format
             this.wavWriter = await WavFileWriter.create(
                 recordingPath,
@@ -220,14 +220,14 @@ export class ServerSessionImpl extends EventEmitter implements ServerSession {
                 this.selectedMedia?.rate || 16000,
                 channels  // Use the fixed channels value
             );
-            
+
             this.logger?.info(`Started WAV recording: ${this.recordingPath}`);
         } catch (error) {
             this.logger?.error(`Failed to start WAV recording: ${error}`);
         }
     }
 
-        async stopWavRecording(): Promise<void> {
+    async stopWavRecording(): Promise<void> {
         if (this.wavWriter) {
             try {
                 const bytesWritten = await this.wavWriter.close();
@@ -337,10 +337,10 @@ export class ServerSessionImpl extends EventEmitter implements ServerSession {
     }
 
     registerHandlers(): void {
-    this.logger.info('[ServerSessionImpl] registerHandlers called, event handlers are being registered');
-    this.ws.on('close', (code: number) => {
+        this.logger.info('[ServerSessionImpl] registerHandlers called, event handlers are being registered');
+        this.ws.on('close', (code: number) => {
             try {
-                   this.logger.info(`christos in  close:`);
+                this.logger.info(`christos in  close:`);
                 this.onWsClose(code);
             } catch (err) {
                 this.logger.error(`Error in WS close handler: ${normalizeError(err).stack}`);
@@ -507,7 +507,7 @@ export class ServerSessionImpl extends EventEmitter implements ServerSession {
     }
 
     // Fix the WAV recording method
-   
+
 
     onBinaryMessage(data: Uint8Array): void {
         this.logger.trace(`Binary message. Size: ${data.length}`);
@@ -521,22 +521,22 @@ export class ServerSessionImpl extends EventEmitter implements ServerSession {
             this.signalClientError('Unexpected binary message: No media selected');
             return;
         }
-        
- 
+
+
         let audioFrame;
         try {
             audioFrame = mediaDataFrameFromMessage(data, this.selectedMedia);
-                  // Fix: Use the correct property name
-         // Fix: Write raw binary data to WAV instead of trying to access frame properties
-        if (this.wavWriter && audioFrame) {
-            try {
-                // Since we don't know the exact MediaDataFrame properties,
-                // let's write the original binary data which contains the audio
-                this.wavWriter.writeAudio(data);
-            } catch (error) {
-                this.logger?.error(`WAV write error: ${error}`);
+            // Fix: Use the correct property name
+            // Fix: Write raw binary data to WAV instead of trying to access frame properties
+            if (this.wavWriter && audioFrame) {
+                try {
+                    // Since we don't know the exact MediaDataFrame properties,
+                    // let's write the original binary data which contains the audio
+                    this.wavWriter.writeAudio(data);
+                } catch (error) {
+                    this.logger?.error(`WAV write error: ${error}`);
+                }
             }
-        }
         } catch (err) {
             const info = `Binary data not a valid audio frame. Error: ${normalizeError(err).message}`;
             this.logger.warn(info);
@@ -544,7 +544,7 @@ export class ServerSessionImpl extends EventEmitter implements ServerSession {
             return;
         }
 
-             // Forward session ID as a fixed-length buffer (36 bytes for UUID), channel id (1 byte), size (4 bytes), then binary data
+        // Forward session ID as a fixed-length buffer (36 bytes for UUID), channel id (1 byte), size (4 bytes), then binary data
         const sessionIdStr = String(this.id);
         const sessionIdBuf = Buffer.alloc(36, ' ');
         sessionIdBuf.write(sessionIdStr, 0, 'utf8');
@@ -564,7 +564,7 @@ export class ServerSessionImpl extends EventEmitter implements ServerSession {
 
         // Combine all buffers
         const combinedBuf = Buffer.concat([sessionIdBuf, channelBuf, sizeBuf, dataBuf]);
-        
+
         if (!this.socketClients || this.socketClients.size === 0) {
             this.logger.warn('No socket clients connected for forwarding');
         } else {
@@ -574,55 +574,53 @@ export class ServerSessionImpl extends EventEmitter implements ServerSession {
         this.position = this.position.withAddedSamples(audioFrame.sampleCount, audioFrame.rate);
         this.onAudioData(audioFrame);
 
-     }
+    }
 
-   
+    private initializeSocketServer(): void {
+        try {
+            this.logger.info(`🔌 Attempting to connect to Unix socket: ${this.socketPath}`);
+            const net = require('net');
 
-     private initializeSocketServer(): void {
-    try {
-                this.logger.info(`🔌 Attempting to connect to Unix socket: ${this.socketPath}`);
-                const net = require('net');
-                
-                // Create a Unix datagram socket using native module
-                this.socketFd = net.Socket({ allowHalfOpen: false });
-                
-                // For datagram-style sending, we'll connect to the server socket
-                this.socketFd.connect(this.socketPath, () => {
-                    this.logger.info(`✅ Successfully connected to Unix socket: ${this.socketPath}`);
-                    this.logger.info(`📡 Socket ready to forward audio data to GnsysOp`);
-                    this.socketClients.add(this.socketFd);
-                });
-                
-                this.socketFd.on('error', (err: Error) => {
-                    this.logger.error(`❌ Socket error: ${err.message}`);
-                    this.logger.error(`   Socket path: ${this.socketPath}`);
-                    this.logger.error(`   Make sure GnsysOp is running and listening on the socket`);
-                    this.socketClients.delete(this.socketFd);
-                });
-                
-                this.socketFd.on('close', () => {
-                    this.logger.warn('⚠️ Socket connection closed');
-                    this.logger.warn(`   No longer connected to ${this.socketPath}`);
-                    this.socketClients.delete(this.socketFd);
-                });
-                
-            } catch (err) {
-                this.logger.error(`❌ Failed to initialize socket client: ${err}`);
+            // Create a Unix socket connection
+            this.socketFd = new net.Socket({ allowHalfOpen: false });
+
+            // For datagram-style sending, we'll connect to the server socket
+            this.socketFd.connect(this.socketPath, () => {
+                this.logger.info(`✅ Successfully connected to Unix socket: ${this.socketPath}`);
+                this.logger.info(`📡 Socket ready to forward audio data for session ${this.id}`);
+                this.socketClients.add(this.socketFd);
+            });
+
+            this.socketFd.on('error', (err: Error) => {
+                this.logger.error(`❌ Socket error for session ${this.id}: ${err.message}`);
                 this.logger.error(`   Socket path: ${this.socketPath}`);
-                this.socketFd = null;
-            }
-        }
+                this.logger.error(`   Make sure GnsysOp is running and listening on the socket`);
+                this.socketClients.delete(this.socketFd);
+            });
 
-       private forwardToSocketClients(data: Uint8Array): void {
+            this.socketFd.on('close', () => {
+                this.logger.warn(`⚠️ Socket connection closed for session ${this.id}`);
+                this.logger.warn(`   No longer connected to ${this.socketPath}`);
+                this.socketClients.delete(this.socketFd);
+            });
+
+        } catch (err) {
+            this.logger.error(`❌ Failed to initialize socket client for session ${this.id}: ${err}`);
+            this.logger.error(`   Socket path: ${this.socketPath}`);
+            this.socketFd = null;
+        }
+    }
+
+    private forwardToSocketClients(data: Uint8Array): void {
         try {
             if (!this.socketFd || !this.socketFd.writable) {
                 this.logger.warn('⚠️ Socket client not connected or not writable - cannot forward audio');
                 this.logger.warn(`   Socket path: ${this.socketPath}`);
                 return;
             }
-            
+
             const buffer = Buffer.from(data);
-            
+
             // Send data through the connected stream socket
             this.socketFd.write(buffer, (err: Error | undefined) => {
                 if (err) {
@@ -631,23 +629,40 @@ export class ServerSessionImpl extends EventEmitter implements ServerSession {
                     this.logger.trace(`✓ Sent ${data.length} bytes to ${this.socketPath}`);
                 }
             });
-            
+
         } catch (err) {
             this.logger.error(`❌ Failed to forward data to socket: ${normalizeError(err).message}`);
         }
     }
 
-
     public close(): void {
         if (this.socketFd) {
             try {
-                this.socketFd.close();
-                this.logger.info('Socket closed');
+                // Send close signal before closing socket
+                if (this.socketFd.writable) {
+                    const sessionIdStr = String(this.id);
+                    const sessionIdBuf = Buffer.alloc(36, ' ');
+                    sessionIdBuf.write(sessionIdStr, 0, 'utf8');
+
+                    const channelBuf = Buffer.alloc(1);
+                    channelBuf.writeUInt8(255, 0);
+
+                    const sizeBuf = Buffer.alloc(4);
+                    sizeBuf.writeUInt32BE(0, 0);
+
+                    const closeSignal = Buffer.concat([sessionIdBuf, channelBuf, sizeBuf]);
+                    this.socketFd.write(closeSignal);
+                }
+
+                this.socketFd.end();
+                this.socketFd.destroy();
+                this.logger.info(`Socket closed for session ${this.id}`);
             } catch (err) {
-                this.logger.warn(`Error closing socket: ${normalizeError(err).message}`);
+                this.logger.warn(`Error closing socket for session ${this.id}: ${normalizeError(err).message}`);
             }
             this.socketFd = null;
         }
+        this.socketClients.clear();
     }
 
     // Method to set custom socket path
@@ -766,18 +781,28 @@ export class ServerSessionImpl extends EventEmitter implements ServerSession {
 
     onCloseMessage(message: CloseMessage): void {
         this.logger.debug(`onCloseMessage - ${JSON.stringify(message, null, 1)}`);
-       
-         if (!this.socketClients || this.socketClients.size === 0) {
-            this.logger.warn('No socket clients connected for forwarding');
-            
-         } else {
-             const sessionIdStr = String(this.id);
-        const sessionIdBuf = Buffer.alloc(36, ' ');
+
+        // Send session close signal with proper framing
+        if (this.socketClients && this.socketClients.size > 0) {
+            const sessionIdStr = String(this.id);
+            const sessionIdBuf = Buffer.alloc(36, ' ');
             sessionIdBuf.write(sessionIdStr, 0, 'utf8');
 
-        this.forwardToSocketClients(sessionIdBuf as Uint8Array);
-         }
-        
+            // Add a close marker (channel 255) and size 0 to indicate session close
+            const channelBuf = Buffer.alloc(1);
+            channelBuf.writeUInt8(255, 0); // Special channel ID for close signal
+
+            const sizeBuf = Buffer.alloc(4);
+            sizeBuf.writeUInt32BE(0, 0); // Size 0 indicates close
+
+            const closeSignal = Buffer.concat([sessionIdBuf, channelBuf, sizeBuf]);
+
+            this.logger.info(`Sending close signal for session ${this.id}`);
+            this.forwardToSocketClients(Uint8Array.from(closeSignal));
+        } else {
+            this.logger.warn(`No socket clients connected for session ${this.id}`);
+        }
+
         if (this.state === 'CLOSING') {
             this.logger.info(`onCloseMessage - Ignoring message in state ${this.state}`);
             return;
@@ -798,7 +823,7 @@ export class ServerSessionImpl extends EventEmitter implements ServerSession {
                     this.setState('CLOSED');
                 }
             });
-     this.stopWavRecording();
+        this.stopWavRecording();
     }
 
     onErrorMessage(message: ErrorMessage): void {
