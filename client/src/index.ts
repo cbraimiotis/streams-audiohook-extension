@@ -232,33 +232,33 @@ new Command()
             const sessionId = uuid();
             const sessionLogger = logger.child({ session: sessionId }, { level: options.sessionLogLevel });
 
-            console.log('🎵 DEBUG: connectionProbe =', connectionProbe);
-            console.log('🎵 DEBUG: wavfile =', options.wavfile);
-            console.log('🎵 DEBUG: maxStreamDuration =', options.maxStreamDuration);
+            //console.log('🎵 DEBUG: connectionProbe =', connectionProbe);
+            //console.log('🎵 DEBUG: wavfile =', options.wavfile);
+            //console.log('🎵 DEBUG: maxStreamDuration =', options.maxStreamDuration);
 
             let mediaSource: MediaSource;
             if(connectionProbe) {
-                console.log('🎵 Creating tone media source (connection probe)');
+                //console.log('🎵 Creating tone media source (connection probe)');
                 mediaSource = createToneMediaSource(options.maxStreamDuration ?? StreamDuration.zero);
             } else if(options.wavfile) {
-                console.log('🎵 Creating WAV media source for:', options.wavfile);
+                //console.log('🎵 Creating WAV media source for:', options.wavfile);
                 mediaSource = await createWavMediaSource(options.wavfile, options.maxStreamDuration);
-                console.log('🎵 WAV media source created:', !!mediaSource);
+                //console.log('🎵 WAV media source created:', !!mediaSource);
             } else {
-                console.log('🎵 Creating tone media source (default)');
+                //console.log('🎵 Creating tone media source (default)');
                 mediaSource = createToneMediaSource(options.maxStreamDuration);
             }
             // Add event listener to see if audio events are emitted from mediaSource
             mediaSource.on('audio', (data) => {
-                console.log('🎵 MEDIA SOURCE AUDIO EVENT:', data.length, 'bytes');
+                //console.log('🎵 MEDIA SOURCE AUDIO EVENT:', data.length, 'bytes');
             });
 
             mediaSource.on('error', (error) => {
-                console.log('🎵 MEDIA SOURCE ERROR:', error);
+                //console.log('🎵 MEDIA SOURCE ERROR:', error);
             });
 
             mediaSource.on('end', (position) => {
-                console.log('🎵 MEDIA SOURCE END:', position.toString());
+                //console.log('🎵 MEDIA SOURCE END:', position.toString());
             });
 
          
@@ -291,7 +291,7 @@ new Command()
                 },
             });
             session.on('event', (event) => {
-                console.log('🎵 SESSION EVENT:', JSON.stringify(event).substring(0, 100));
+                //console.log('🎵 SESSION EVENT:', JSON.stringify(event).substring(0, 100));
             });
             session.on('event', (parameters) => {
                 sessionLogger.info(`Event message: ${JSON.stringify(parameters, null, 1)}`);
