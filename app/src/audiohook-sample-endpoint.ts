@@ -117,29 +117,25 @@ export const addAudiohookSampleRoute = (fastify: FastifyInstance, path: string):
         }
         
           if ( session instanceof ServerSessionImpl) {
-            logger.info(`🎵 Setting up WAV recording for session: ${sessionId}`);
-            
             // Start WAV recording when session opens
             session.addOpenHandler(async () => {
-                logger.info(`🎵 Session opened, starting WAV recording...`);
                 try {
                     const sessionImpl = session as ServerSessionImpl;
                     await sessionImpl.startWavRecording(sessionId, fileLogRoot);
-                    logger.info(`🎵 WAV recording started successfully`);
                 } catch (error) {
-                    logger.error(`🎵 Failed to start WAV recording: ${error}`);
+                    logger.error(`Failed to start WAV recording: ${error}`);
                 }
             });
             
             // Stop WAV recording when session closes
             session.addFiniHandler(async () => {
-                logger.info(`🎵 Session closing, stopping WAV recording...`);
+                logger.info(`Session closing, stopping WAV recording...`);
                 try {
                     const sessionImpl = session as ServerSessionImpl;
                     await sessionImpl.stopWavRecording();
-                    logger.info(`🎵 WAV recording stopped successfully`);
+                    logger.info(`WAV recording stopped successfully`);
                 } catch (error) {
-                    logger.error(`🎵 Failed to stop WAV recording: ${error}`);
+                    logger.error(`Failed to stop WAV recording: ${error}`);
                 }
             });
         }

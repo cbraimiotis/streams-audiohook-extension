@@ -340,7 +340,6 @@ export class ServerSessionImpl extends EventEmitter implements ServerSession {
         this.logger.info('[ServerSessionImpl] registerHandlers called, event handlers are being registered');
         this.ws.on('close', (code: number) => {
             try {
-                this.logger.info(`christos in  close:`);
                 this.onWsClose(code);
             } catch (err) {
                 this.logger.error(`Error in WS close handler: ${normalizeError(err).stack}`);
